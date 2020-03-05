@@ -79,7 +79,7 @@ void setup() {
   digitalWrite(LED_BUILTIN, HIGH);
   pinMode(SWITCHPIN, INPUT_PULLUP);
 
-  Serial.println("\nConfig-Modus aktivieren?");
+  Serial.println("\nActivate config mode?");
   for (int i = 0; i < 20; i++) {
     if (digitalRead(SWITCHPIN) == LOW) {
       startWifiManager = true;
@@ -113,6 +113,7 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
   //Millisekundenüberlauf nach 49... Tagen abfangen
+  //catch millisecond overflow after 49 ... days
   if (oldStandbyBlinkMillis > millis())
     oldStandbyBlinkMillis = millis();
   if (oldBeepMillis > millis())
@@ -150,18 +151,22 @@ void loop() {
     }
     RFID.chipId = result1 + result2;
     //Wenn Chip LANGE gehalten wird
+    //If chip is held LONG
     if (RFID.detectCount == RFIDDETECTLOOPS) {
       Serial.println("\nLONG HOLD (" + String(RFID.detectCount) + ")  " + RFID.chipId);
       //prüfen, ob sich Alarm scharf schalten lässt
+      //check whether the alarm can be armed
       if (getStateCCU(String(HomeMaticConfig.VAR_Alarmanlage_scharfschaltbar), "State") == "true") {
-        Serial.println("Scharfschaltbar!");
+        Serial.println("Armable!");
         Systemzustand.Scharfschaltbar = true;
         //Sende Befehl zum Scharfschalten
+        //Send command to arm
         setStateCCU(HomeMaticConfig.VAR_RFID_command, "\"1;" + RFID.chipId + "\"");
       } else {
         //Wenn nicht scharfschaltbar, dann nur Piepton ausgeben
+        //If not armed, then only beep
         Systemzustand.Scharfschaltbar = false;
-        Serial.println("Nicht scharfschaltbar!");
+        Serial.println("Cannot be armed!");
         for (int i = 0; i < 10; i++) {
           beep(50);
           delay(10);
@@ -171,6 +176,8 @@ void loop() {
       if (Systemzustand.Scharfschaltbar == true) {
         delay(150); // <- Wartepause wegen lahmer CCU2, bei RaspberryMatic nicht erforderlich
         //anschließend prüfen, ob Anlage scharf geschaltet wird
+        //Waiting pause due to lame CCU2, not necessary with RaspberryMatic
+         // then check whether the system is armed
         if (getStateCCU(String(HomeMaticConfig.VAR_Alarmanlage_wird_scharf), "State") == "true") {
           digitalWrite(LED_BUILTIN, LOW);
           Systemzustand.Scharf = true;
@@ -178,7 +185,8 @@ void loop() {
         }
         else {
           //Chip nicht zugelassen
-          Serial.println("Chip nicht zugelassen!");
+          //Chip not allowed
+          Serial.println("Chip not allowed!");
           for (int i = 0; i < 2; i++) {
             beep(50);
             delay(10);
@@ -190,13 +198,17 @@ void loop() {
     RFID.noDetectCount++;
     if (RFID.noDetectCount == 4) {
       //Wenn Chip KURZ gehalten wird
+      //When chip is kept SHORT
       if (RFID.detectCount > 0 && RFID.detectCount < (RFIDDETECTLOOPS) && RFID.chipId != "") {
         Serial.println("\nSHORT HOLD (" + String(RFID.detectCount) + ") " + RFID.chipId);
         //Sende Befehl für unscharf
+        //Send command for disarmed
         setStateCCU(HomeMaticConfig.VAR_RFID_command, "\"0;" + RFID.chipId + "\"");
         RFID.chipId = "";
         delay(150); // <- Wartepause wegen lahmer CCU2, bei RaspberryMatic nicht erforderlich
         //Prüfe, ob tatsächlich unscharf
+        //Waiting pause due to lame CCU2, not necessary with RaspberryMatic
+        // Check if actually out of focus
         if (getStateCCU(HomeMaticConfig.VAR_Alarmanlage_scharf, "State") == "false") {
           digitalWrite(LED_BUILTIN, HIGH);
           Systemzustand.Scharf = false;
@@ -205,6 +217,7 @@ void loop() {
         }
         else {
           //Sonst ist da was faul
+          //Otherwise something is wrong
           for (int i = 0; i < 2; i++) {
             beep(50);
             delay(10);
@@ -219,7 +232,7 @@ void loop() {
   String udpMessage = handleUDP();
   if (udpMessage != "") {
     bool oldScharf = Systemzustand.Scharf;
-    Serial.println("UDP Info erhalten: " + udpMessage);
+    Serial.println("Get UDP info: " + udpMessage);
     if (udpMessage == "0") Systemzustand.Scharf = false;
     if (udpMessage == "1") Systemzustand.Scharf = true;
     digitalWrite(LED_BUILTIN, (udpMessage == "0"));
